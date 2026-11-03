@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ward Locator</title>
+<meta name="theme-color" content="#0b6e4f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+html, body { margin: 0; }
+
+  /* Layout: controls on top, result card, then a scaled schematic map with a numbered ward key. */
+  :root {
+    --bg: #f6f7f4;
+    --surface: #ffffff;
+    --fg: #1b2a22;
+    --muted: #5f6d65;
+    --line: #dde3dc;
+    --accent: #0b6e4f;
+    --accent-ink: #ffffff;
+    --route: #c2410c;
+    --me: #1d4ed8;
+    --grid: #e6ebe4;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1713; --surface: #17211b; --fg: #e6efe9; --muted: #98a89f; --line: #28372e;
+      --accent: #3ecf9a; --accent-ink: #06231a; --route: #fb923c; --me: #7aa2ff; --grid: #1d2a22;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1713; --surface: #17211b; --fg: #e6efe9; --muted: #98a89f; --line: #28372e;
+    --accent: #3ecf9a; --accent-ink: #06231a; --route: #fb923c; --me: #7aa2ff; --grid: #1d2a22;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px;
+    padding-block: 16px 32px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 22px; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 460px) { .controls { grid-template-columns: 1fr; } }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted);
+    letter-spacing: .04em; text-transform: uppercase; min-width: 0; }
+  select { font: inherit; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--fg);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; width: 100%; }
+  select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .arrow { display: inline-block; transition: transform .3s; color: var(--route); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .btn { display: inline-block; font: inherit; font-size: 15px; padding: 10px 14px; border-radius: 10px;
+    background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); text-decoration: none; cursor: pointer; }
+  .btn.alt { background: transparent; color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .mapbox { padding: 8px; }
+  svg { display: block; width: 100%; height: auto; max-height: 76vh; }
+  .key { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .key button { width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--fg); background: transparent;
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  .key button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .key i { font-style: normal; font-weight: 600; width: 22px; height: 22px; border-radius: 50%; flex: none;
+    background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 12px; }
+  .key small { color: var(--muted); display: block; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div>
+    <h1>Ward Locator</h1>
+    <div class="sub">10 survey wards in Uasin Gishu and Nandi. Pick a ward to see how far it is and which way to go.</div>
+  </div>
+
+  <div class="controls">
+    <label>Go to
+      <select id="to" aria-label="Ward to visit"></select>
+    </label>
+    <label>Starting from
+      <select id="from" aria-label="Starting point"></select>
+    </label>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><b id="dist">--</b><span>Straight line</span></div>
+      <div class="stat"><b id="road">--</b><span>By road (estimate)</span></div>
+      <div class="stat"><b><span class="arrow" id="arrow">&#8593;</span> <span id="dir">--</span></b><span>Head this way</span></div>
+    </div>
+    <div class="actions">
+      <a class="btn" id="navMe" target="_blank" rel="noopener">Directions from my location</a>
+      <a class="btn alt" id="navFrom" target="_blank" rel="noopener">Directions from start</a>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <div class="card mapbox">
+    <svg id="map" viewBox="0 0 360 560" role="img" aria-label="Map of the 10 survey wards"></svg>
+  </div>
+
+  <ul class="key" id="key"></ul>
+</div>
+
+<script>
+const WARDS = [
+  {n:1,  name:"Langas",      con:"Kapseret", county:"Uasin Gishu", lat:0.52439, lng:35.20364},
+  {n:2,  name:"Racecourse",  con:"Kesses",   county:"Uasin Gishu", lat:0.48169, lng:35.2843},
+  {n:3,  name:"Kapsoya",     con:"Ainabkoi", county:"Uasin Gishu", lat:0.52039, lng:35.32055},
+  {n:4,  name:"Huruma",      con:"Turbo",    county:"Uasin Gishu", lat:0.53094, lng:35.24621},
+  {n:5,  name:"Kiplombe",    con:"Turbo",    county:"Uasin Gishu", lat:0.63359, lng:35.22896},
+  {n:6,  name:"Kapsaos",     con:"Turbo",    county:"Uasin Gishu", lat:0.56439, lng:35.23021},
+  {n:7,  name:"Moi's Bridge",con:"Soy",      county:"Uasin Gishu", lat:0.90055, lng:35.16447},
+  {n:8,  name:"Kiptuya",     con:"Chesumei", county:"Nandi",       lat:0.19447, lng:35.01533},
+  {n:9,  name:"Kapkangani",  con:"Emgwen",   county:"Nandi",       lat:0.20311, lng:34.95807},
+  {n:10, name:"Kabwareng",   con:"Aldai",    county:"Nandi",       lat:0.11418, lng:34.89485}
+];
+const TOWN = {name:"Eldoret town", lat:0.5143, lng:35.2698};
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const SC = 600, X0 = 34.85, Y0 = 0.95;
+const px = lng => 20 + (lng - X0) * SC;
+const py = lat => 20 + (Y0 - lat) * SC;
+
+function el(tag, attrs, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+const rad = d => d * Math.PI / 180;
+function km(a, b, c, d){
+  const dl = rad(c - a), dg = rad(d - b);
+  const x = Math.sin(dl/2)**2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(dg/2)**2;
+  return 12742 * Math.asin(Math.sqrt(x));
+}
+function bearing(a, b, c, d){
+  const y = Math.sin(rad(d - b)) * Math.cos(rad(c));
+  const x = Math.cos(rad(a)) * Math.sin(rad(c)) - Math.sin(rad(a)) * Math.cos(rad(c)) * Math.cos(rad(d - b));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+const PTS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const compass = deg => PTS[Math.round(deg / 22.5) % 16];
+
+const toSel = $('to'), fromSel = $('from');
+toSel.innerHTML = WARDS.map(w => '<option value="' + w.n + '">' + w.n + '. ' + w.name + ' (' + w.con + ', ' + w.county + ')</option>').join('');
+fromSel.innerHTML = '<option value="T">' + TOWN.name + '</option>' +
+  WARDS.map(w => '<option value="' + w.n + '">' + w.name + ' ward</option>').join('');
+toSel.value = '8'; fromSel.value = 'T';
+
+const key = $('key');
+WARDS.forEach(w => {
+  const li = document.createElement('li');
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.n = w.n;
+  const i = document.createElement('i'); i.textContent = w.n;
+  const t = document.createElement('span');
+  t.textContent = w.name;
+  const s = document.createElement('small'); s.textContent = w.con + ', ' + w.county;
+  t.appendChild(s);
+  b.append(i, t);
+  b.addEventListener('click', () => { toSel.value = String(w.n); render(); });
+  li.appendChild(b); key.appendChild(li);
+});
+
+function startPoint(){
+  return fromSel.value === 'T' ? TOWN : WARDS.find(w => String(w.n) === fromSel.value);
+}
+
+function drawMap(dest, start){
+  const svg = $('map');
+  svg.textContent = '';
+  svg.appendChild(el('rect', {x:0, y:0, width:360, height:560, rx:8, fill:'var(--bg)'}));
+  for (let lat = 0.1; lat <= 0.95; lat += 0.1) svg.appendChild(el('line', {x1:0, x2:360, y1:py(lat), y2:py(lat), stroke:'var(--grid)', 'stroke-width':1}));
+  for (let lng = 34.9; lng <= 35.35; lng += 0.1) svg.appendChild(el('line', {y1:0, y2:560, x1:px(lng), x2:px(lng), stroke:'var(--grid)', 'stroke-width':1}));
+  // scale bar: 10 km
+  const tenKm = 10 / 111.32 * SC;
+  svg.appendChild(el('line', {x1:20, x2:20 + tenKm, y1:545, y2:545, stroke:'var(--fg)', 'stroke-width':2}));
+  svg.appendChild(el('text', {x:20, y:538, fill:'var(--muted)', 'font-size':10}, '10 km'));
+  // north arrow
+  svg.appendChild(el('path', {d:'M336 40 L342 54 L336 50 L330 54 Z', fill:'var(--fg)'}));
+  svg.appendChild(el('text', {x:336, y:30, 'text-anchor':'middle', fill:'var(--muted)', 'font-size':11}, 'N'));
+  // county hint labels
+  svg.appendChild(el('text', {x:150, y:150, fill:'var(--muted)', 'font-size':11, opacity:.8}, 'UASIN GISHU'));
+  svg.appendChild(el('text', {x:30, y:420, fill:'var(--muted)', 'font-size':11, opacity:.8}, 'NANDI'));
+  // route
+  if (start && !(start.lat === dest.lat && start.lng === dest.lng)){
+    const x1 = px(start.lng), y1 = py(start.lat), x2 = px(dest.lng), y2 = py(dest.lat);
+    svg.appendChild(el('line', {x1, y1, x2, y2, stroke:'var(--route)', 'stroke-width':2.5, 'stroke-dasharray':'6 5'}));
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const ax = x2 - Math.cos(ang) * 14, ay = y2 - Math.sin(ang) * 14;
+    const p1 = [ax - Math.sin(ang) * 5, ay + Math.cos(ang) * 5], p2 = [ax + Math.sin(ang) * 5, ay - Math.cos(ang) * 5];
+    svg.appendChild(el('polygon', {points:[[x2 - Math.cos(ang) * 10, y2 - Math.sin(ang) * 10], p1, p2].map(p => p.join(',')).join(' '), fill:'var(--route)'}));
+  }
+  // town
+  const tx = px(TOWN.lng), ty = py(TOWN.lat);
+  svg.appendChild(el('path', {d:'M' + tx + ' ' + (ty - 5) + ' L' + (tx + 5) + ' ' + ty + ' L' + tx + ' ' + (ty + 5) + ' L' + (tx - 5) + ' ' + ty + ' Z', fill:'var(--me)'}));
+  svg.appendChild(el('text', {x:tx + 8, y:ty + 16, fill:'var(--me)', 'font-size':10}, 'Eldoret'));
+  // wards
+  WARDS.forEach(w => {
+    const g = el('g', {style:'cursor:pointer', tabindex:0, role:'button', 'aria-label':w.name});
+    const on = dest.n === w.n;
+    g.appendChild(el('circle', {cx:px(w.lng), cy:py(w.lat), r:on ? 11 : 9, fill:on ? 'var(--route)' : 'var(--accent)', stroke:'var(--surface)', 'stroke-width':2}));
+    g.appendChild(el('text', {x:px(w.lng), y:py(w.lat) + 4, 'text-anchor':'middle', fill:'#fff', 'font-size':on ? 12 : 11, 'font-weight':700}, String(w.n)));
+    g.addEventListener('click', () => { toSel.value = String(w.n); render(); });
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toSel.value = String(w.n); render(); } });
+    svg.appendChild(g);
+  });
+  // destination label
+  const lx = px(dest.lng), ly = py(dest.lat);
+  const left = lx > 230;
+  svg.appendChild(el('text', {x:left ? lx - 16 : lx + 16, y:ly + 4, 'text-anchor':left ? 'end' : 'start', fill:'var(--fg)', 'font-size':12, 'font-weight':600}, dest.name));
+}
+
+function render(){
+  const dest = WARDS.find(w => String(w.n) === toSel.value);
+  const start = startPoint();
+  document.querySelectorAll('.key button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.n === String(dest.n))));
+  const d = km(start.lat, start.lng, dest.lat, dest.lng);
+  const sameSpot = d < 0.05;
+  if (sameSpot){
+    $('dist').textContent = '0 km'; $('road').textContent = '0 km'; $('dir').textContent = '--';
+    $('arrow').style.transform = 'none';
+    $('hint').textContent = 'The start and the ward share a centre point.';
+  } else {
+    const b = bearing(start.lat, start.lng, dest.lat, dest.lng);
+    $('dist').textContent = d.toFixed(1) + ' km';
+    $('road').textContent = '~' + Math.round(d * 1.3) + ' km';
+    $('dir').textContent = compass(b) + ' ' + Math.round(b) + '°';
+    $('arrow').style.transform = 'rotate(' + b + 'deg)';
+    $('hint').textContent = 'Road distance is about 1.3 times the straight line, so check it in Google Maps. The ward centre is the ward’s middle point, not a specific building.';
+  }
+  const dst = dest.lat + ',' + dest.lng;
+  $('navMe').href = 'https://www.google.com/maps/dir/?api=1&destination=' + dst + '&travelmode=driving';
+  $('navFrom').href = 'https://www.google.com/maps/dir/?api=1&origin=' + start.lat + ',' + start.lng + '&destination=' + dst + '&travelmode=driving';
+  $('navFrom').textContent = 'Directions from ' + (fromSel.value === 'T' ? 'Eldoret town' : start.name);
+  drawMap(dest, start);
+}
+toSel.addEventListener('change', render);
+fromSel.addEventListener('change', render);
+render();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+
+</body>
+</html>
