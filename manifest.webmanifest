@@ -1,7 +1,7 @@
 {
   "name": "Ward Locator",
   "short_name": "Wards",
-  "description": "Find the 27 survey wards in Uasin Gishu, Nandi, West Pokot and Baringo: distance, direction and directions.",
+  "description": "Find any ward in Kenya: distance, direction and directions. Includes polling stations for the 27 survey wards.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

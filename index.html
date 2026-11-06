@@ -86,22 +86,52 @@ html, body { margin: 0; }
     text-decoration: none; white-space: nowrap; }
   .pairnote { font-size: 13px; padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; background: color-mix(in srgb, var(--route) 12%, transparent); color: var(--fg); }
   .st a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-</style>
-</head>
+
+  input[type=search] { font: inherit; font-size: 16px; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; width: 100%; }
+  input[type=search]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .search { position: relative; }
+  .res { list-style: none; margin: 6px 0 0; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .res button { width: 100%; text-align: left; font: inherit; color: var(--fg); background: transparent; border: 0; border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; display: block; }
+  .res button:hover, .res button:focus-visible { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
+  .res small { color: var(--muted); display: block; font-size: 12px; }
+  .res .more { padding: 6px 10px; font-size: 12px; color: var(--muted); }
+  .key i.st1 { background: var(--route); }
+  .key .dotw { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; margin: 0 6px; }
+  .key .dotw.sv { background: var(--route); }
+  .sec { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 4px 0 -6px; }
+  .nostn { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+</style></head>
 <body>
 
 <div class="wrap">
   <div>
     <h1>Ward Locator</h1>
-    <div class="sub">27 survey wards in Uasin Gishu, Nandi, West Pokot and Baringo. Pick a ward to see how far it is and which way to go.</div>
+    <div class="sub" id="sub">Every ward in Kenya. Pick one to see how far it is and which way to go.</div>
+  </div>
+
+  <div class="search">
+    <label>Search any ward
+      <input type="search" id="q" placeholder="Ward, constituency or county" autocomplete="off" enterkeyhint="search">
+    </label>
+    <ul class="res" id="res" hidden></ul>
   </div>
 
   <div class="controls">
-    <label>Go to
+    <label>County
+      <select id="cn" aria-label="County"></select>
+    </label>
+    <label>Ward
       <select id="to" aria-label="Ward to visit"></select>
     </label>
+  </div>
+  <div class="controls">
     <label>Starting from
       <select id="from" aria-label="Starting point"></select>
+    </label>
+    <label>&nbsp;
+      <button class="btn alt" id="gps" type="button">Use my location</button>
     </label>
   </div>
 
@@ -119,7 +149,7 @@ html, body { margin: 0; }
   </div>
 
   <div class="card mapbox">
-    <svg id="map" viewBox="0 0 360 560" role="img" aria-label="Map of the survey wards"></svg>
+    <svg id="map" viewBox="0 0 360 560" role="img" aria-label="Map of the wards in the selected county"></svg>
   </div>
 
   <div class="card stations">
@@ -128,909 +158,50 @@ html, body { margin: 0; }
     <ul class="st" id="stList"></ul>
   </div>
 
+  <div class="sec">Survey wards</div>
   <ul class="key" id="key"></ul>
+  <div class="sec" id="ctyHd">Wards in this county</div>
+  <ul class="key" id="cty"></ul>
 </div>
 
+<script src="wards.js"></script>
 <script>
-const STATIONS = {
- "1": [
-  {
-   "name": "Gitwe Primary School",
-   "code": "027145072605301",
-   "date": "Wed 4 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Langas Primary School",
-   "code": "027145072605407",
-   "date": "Wed 4 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Langas Primary School",
-   "code": "027145072605414",
-   "date": "Wed 4 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kahuroko Trading Centre",
-   "code": "027145072605601",
-   "date": "Thu 5 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Wareng High School",
-   "code": "027145072605704",
-   "date": "Thu 5 Nov",
-   "who": "Local 3"
-  }
- ],
- "2": [
-  {
-   "name": "Racecourse Primary School",
-   "code": "027146072700101",
-   "date": "Fri 6 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Moi University School of Law Annex Campus",
-   "code": "027146072700203",
-   "date": "Fri 6 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Eldoret Polytechnic",
-   "code": "027146072700401",
-   "date": "Fri 6 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Oletebes Trading Centre",
-   "code": "027146072700502",
-   "date": "Sat 7 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Sosiani Primary School",
-   "code": "027146072700606",
-   "date": "Sat 7 Nov",
-   "who": "Hussain"
-  }
- ],
- "3": [
-  {
-   "name": "Kapsoya Primary School",
-   "code": "027144071900204",
-   "date": "Mon 9 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Borderfarm Primary School",
-   "code": "027144071900503",
-   "date": "Mon 9 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kapsoya Dispensary",
-   "code": "027144071900701",
-   "date": "Mon 9 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Munyaka Primary School",
-   "code": "027144071900902",
-   "date": "Tue 10 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Munyaka Primary School",
-   "code": "027144071900909",
-   "date": "Tue 10 Nov",
-   "who": "Ali"
-  }
- ],
- "4": [
-  {
-   "name": "Huruma Primary School",
-   "code": "027142071306703",
-   "date": "Wed 18 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Huruma Primary School",
-   "code": "027142071306712",
-   "date": "Wed 18 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Uasin Gishu Primary School",
-   "code": "027142071306901",
-   "date": "Wed 18 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "M.V Patel Hall",
-   "code": "027142071307005",
-   "date": "Thu 19 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "M.V Patel Hall",
-   "code": "027142071307014",
-   "date": "Thu 19 Nov",
-   "who": "Local 3"
-  }
- ],
- "5": [
-  {
-   "name": "Kaplelach Primary School",
-   "code": "027142071104802",
-   "date": "Fri 20 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kiplombe Primary School",
-   "code": "027142071105102",
-   "date": "Fri 20 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Eldoret Secondary School",
-   "code": "027142071105306",
-   "date": "Sat 21 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Emkwen Primary School",
-   "code": "027142071105702",
-   "date": "Sat 21 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Moi University West Campus",
-   "code": "027142071106102",
-   "date": "Mon 23 Nov",
-   "who": "Hussain"
-  }
- ],
- "6": [
-  {
-   "name": "Kapyemit Primary School",
-   "code": "027142071206303",
-   "date": "Mon 23 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kapyemit Primary School",
-   "code": "027142071206308",
-   "date": "Mon 23 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Kapkoros Primary School",
-   "code": "027142071206501",
-   "date": "Tue 24 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kapkoros Primary School",
-   "code": "027142071206506",
-   "date": "Tue 24 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Emkoin Primary School",
-   "code": "027142071206602",
-   "date": "Wed 25 Nov",
-   "who": "Ali"
-  }
- ],
- "7": [
-  {
-   "name": "AIC Moi's Bridge Primary School",
-   "code": "027141070100102",
-   "date": "Wed 25 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "AIC Moi's Bridge Primary School",
-   "code": "027141070100105",
-   "date": "Thu 26 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Kwenet Primary School",
-   "code": "027141070100302",
-   "date": "Thu 26 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Mukunga Primary School",
-   "code": "027141070100502",
-   "date": "Fri 27 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Bwayi Primary School",
-   "code": "027141070100603",
-   "date": "Fri 27 Nov",
-   "who": "Ali"
-  }
- ],
- "8": [
-  {
-   "name": "Mwein Primary School",
-   "code": "029154076907901",
-   "date": "Wed 11 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Kimondi Primary School",
-   "code": "029154076908101",
-   "date": "Wed 11 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Kechire Primary School",
-   "code": "029154076908203",
-   "date": "Wed 11 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Kapkitara Primary School",
-   "code": "029154076908501",
-   "date": "Thu 12 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Cheptigok Primary School",
-   "code": "029154076908701",
-   "date": "Thu 12 Nov",
-   "who": "Local 3"
-  }
- ],
- "9": [
-  {
-   "name": "Mokwo Primary School",
-   "code": "029155077101402",
-   "date": "Fri 13 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Chepsonoi Primary School",
-   "code": "029155077101602",
-   "date": "Fri 13 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Kapkangani Primary School",
-   "code": "029155077101801",
-   "date": "Fri 13 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Sirwa Yala Primary School",
-   "code": "029155077101902",
-   "date": "Sat 14 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Tebesonik Primary School",
-   "code": "029155077108801",
-   "date": "Sat 14 Nov",
-   "who": "Hussain"
-  }
- ],
- "10": [
-  {
-   "name": "Kaptwai Primary School",
-   "code": "029152075500301",
-   "date": "Mon 16 Nov",
-   "who": "Hussain"
-  },
-  {
-   "name": "Chebara Primary School",
-   "code": "029152075500502",
-   "date": "Mon 16 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Bonjoge Primary School",
-   "code": "029152075500802",
-   "date": "Mon 16 Nov",
-   "who": "Ali"
-  },
-  {
-   "name": "Legemet Primary School",
-   "code": "029152075501201",
-   "date": "Tue 17 Nov",
-   "who": "Local 3"
-  },
-  {
-   "name": "Chemong Primary School",
-   "code": "029152075501801",
-   "date": "Tue 17 Nov",
-   "who": "Ali"
-  }
- ],
- "11": [
-  {
-   "name": "Miskwony Primary School",
-   "code": "024129064100101",
-   "date": "Wed 4 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Ywotwo Nursery School",
-   "code": "024129064101401",
-   "date": "Wed 4 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Kitelakapel Primary School",
-   "code": "024129064102501",
-   "date": "Wed 4 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Serewo Primary School",
-   "code": "024129064103601",
-   "date": "Wed 4 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Kanyarkwat Primary School",
-   "code": "024129064104601",
-   "date": "Thu 5 Nov",
-   "who": "Abdikhadir"
-  }
- ],
- "12": [
-  {
-   "name": "Toyopo Primary School",
-   "code": "024132065700201",
-   "date": "Thu 5 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Chesra Primary School",
-   "code": "024132065701501",
-   "date": "Thu 5 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Reper Primary School",
-   "code": "024132065702601",
-   "date": "Thu 5 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Chemotong Primary School",
-   "code": "024132065703701",
-   "date": "Fri 6 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Chepareria Primary School",
-   "code": "024132065704503",
-   "date": "Fri 6 Nov",
-   "who": "Gedi"
-  }
- ],
- "13": [
-  {
-   "name": "Parkino Primary School",
-   "code": "024130064904301",
-   "date": "Fri 6 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Kokworitit Primary School",
-   "code": "024130064904901",
-   "date": "Fri 6 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Kokwomeses Primary School",
-   "code": "024130064905501",
-   "date": "Sat 7 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Sasach Nursery School",
-   "code": "024130064906501",
-   "date": "Sat 7 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Mnyokok Preprimary School",
-   "code": "024130064907601",
-   "date": "Sat 7 Nov",
-   "who": "Local 1"
-  }
- ],
- "14": [
-  {
-   "name": "Sekerot Primary School",
-   "code": "024130064802901",
-   "date": "Sat 7 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Surumpen Nursery School",
-   "code": "024130064803501",
-   "date": "Mon 9 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Akiriamet Primary School (Mobile)",
-   "code": "024130064803801",
-   "date": "Mon 9 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Kokorosion Manyatta (Mobile)",
-   "code": "024130064804101",
-   "date": "Mon 9 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Simbol Nursery School (Mobile)",
-   "code": "024130064804202",
-   "date": "Mon 9 Nov",
-   "who": "Local 2"
-  }
- ],
- "15": [
-  {
-   "name": "Kacheliba Mixed Primary School",
-   "code": "024131065100301",
-   "date": "Tue 10 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Tiyinei Primary School",
-   "code": "024131065100501",
-   "date": "Tue 10 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Asilong Primary School",
-   "code": "024131065100901",
-   "date": "Tue 10 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Chepo-Otupen Manyatta",
-   "code": "024131065101801",
-   "date": "Tue 10 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Shongen Primary School",
-   "code": "024131065102501",
-   "date": "Wed 11 Nov",
-   "who": "Abdikhadir"
-  }
- ],
- "16": [
-  {
-   "name": "Kodera Primary School",
-   "code": "024131065408301",
-   "date": "Wed 11 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Tuwiit Primary School",
-   "code": "024131065408601",
-   "date": "Wed 11 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Rock-Valley Primary School",
-   "code": "024131065408801",
-   "date": "Wed 11 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "St. Dorcas Primary School",
-   "code": "024131065409501",
-   "date": "Thu 12 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Napitiro Primary School",
-   "code": "024131065409801",
-   "date": "Thu 12 Nov",
-   "who": "Gedi"
-  }
- ],
- "17": [
-  {
-   "name": "Pcholio Primary School",
-   "code": "024131065510501",
-   "date": "Thu 12 Nov",
-   "who": "Local 1 + Local 2"
-  },
-  {
-   "name": "Kiwawa Primary School",
-   "code": "024131065511101",
-   "date": "Thu 12 Nov",
-   "who": "Local 1 + Local 2"
-  },
-  {
-   "name": "Wasat Primary School",
-   "code": "024131065511601",
-   "date": "Fri 13 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kotukoi Village",
-   "code": "024131065512501",
-   "date": "Fri 13 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kalodeke Primary School",
-   "code": "024131065520101",
-   "date": "Fri 13 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ],
- "18": [
-  {
-   "name": "Akoret (Naruoro) Mobile",
-   "code": "024131065613201",
-   "date": "Fri 13 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Kameris Primary School",
-   "code": "024131065614501",
-   "date": "Sat 14 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Nagwoilap Primary School",
-   "code": "024131065615401",
-   "date": "Sat 14 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kituti Primary School",
-   "code": "024131065615901",
-   "date": "Sat 14 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Kosamuk Manyatta",
-   "code": "024131065616701",
-   "date": "Sat 14 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ],
- "19": [
-  {
-   "name": "Eldume Primary School",
-   "code": "030160079905101",
-   "date": "Mon 16 Nov",
-   "who": "Abdikhadir"
-  },
-  {
-   "name": "Lekiricha Ecde",
-   "code": "030160079905301",
-   "date": "Mon 16 Nov",
-   "who": "Gedi"
-  },
-  {
-   "name": "Salabani Primary School",
-   "code": "030160079905801",
-   "date": "Mon 16 Nov",
-   "who": "Local 1"
-  },
-  {
-   "name": "Sintaan Primary School",
-   "code": "030160079906201",
-   "date": "Mon 16 Nov",
-   "who": "Local 2"
-  },
-  {
-   "name": "Meisori Primary School",
-   "code": "030160079906701",
-   "date": "Tue 17 Nov",
-   "who": "Abdikhadir"
-  }
- ],
- "20": [
-  {
-   "name": "Mosuro Ecde",
-   "code": "030160080110901",
-   "date": "Tue 17 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Lekiricha Ecde",
-   "code": "030160080111301",
-   "date": "Tue 17 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Logumgum Primary School",
-   "code": "030160080111801",
-   "date": "Wed 18 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kapindasim Primary School",
-   "code": "030160080112101",
-   "date": "Wed 18 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Nkoiragai Ecde",
-   "code": "030160080116101",
-   "date": "Wed 18 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ],
- "21": [
-  {
-   "name": "Apakiso Primary School",
-   "code": "030157078304801",
-   "date": "Thu 19 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Karuwon Nursery School",
-   "code": "030157078305301",
-   "date": "Thu 19 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Chemolingot Primary School",
-   "code": "030157078305502",
-   "date": "Thu 19 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Dong'E Trading Centre",
-   "code": "030157078306201",
-   "date": "Thu 19 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Alem Pre-School",
-   "code": "030157078307001",
-   "date": "Fri 20 Nov",
-   "who": "Gedi + Local 1"
-  }
- ],
- "22": [
-  {
-   "name": "Nakoko Primary School",
-   "code": "030157078407601",
-   "date": "Fri 20 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Riong'O Primary School",
-   "code": "030157078407901",
-   "date": "Fri 20 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Cheptunoyo Primary School",
-   "code": "030157078408201",
-   "date": "Fri 20 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Nalekat Pre School",
-   "code": "030157078408401",
-   "date": "Sat 21 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Akule Primary School",
-   "code": "030157078416001",
-   "date": "Sat 21 Nov",
-   "who": "Gedi + Local 1"
-  }
- ],
- "23": [
-  {
-   "name": "Chemoril Pre School",
-   "code": "030157078508901",
-   "date": "Sat 21 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Nyaunyau Primary School",
-   "code": "030157078509301",
-   "date": "Sat 21 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Nginyang Girls Secondary",
-   "code": "030157078509601",
-   "date": "Mon 23 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Tuwo Primary School",
-   "code": "030157078509801",
-   "date": "Mon 23 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kinyach Ecde",
-   "code": "030157078516801",
-   "date": "Mon 23 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ],
- "24": [
-  {
-   "name": "Sukut Primary School",
-   "code": "030157078100201",
-   "date": "Mon 23 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Ptikii Primary School",
-   "code": "030157078100601",
-   "date": "Tue 24 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kimnyan Primary School",
-   "code": "030157078101101",
-   "date": "Tue 24 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kamrio Primary School",
-   "code": "030157078101501",
-   "date": "Tue 24 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Kamsino Primary School",
-   "code": "030157078102001",
-   "date": "Tue 24 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ],
- "25": [
-  {
-   "name": "Kolowa Primary School",
-   "code": "030157078202301",
-   "date": "Wed 25 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Tuwit Nursery School",
-   "code": "030157078202701",
-   "date": "Wed 25 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Kipnai Primary School",
-   "code": "030157078203101",
-   "date": "Wed 25 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Ayelelion Dam",
-   "code": "030157078203701",
-   "date": "Wed 25 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Chepelion Primary School",
-   "code": "030157078204301",
-   "date": "Thu 26 Nov",
-   "who": "Gedi + Local 1"
-  }
- ],
- "26": [
-  {
-   "name": "Kasilangwa Primary School",
-   "code": "030157078712501",
-   "date": "Thu 26 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Churo Primary School",
-   "code": "030157078712702",
-   "date": "Thu 26 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Cheptangarmot Primary School",
-   "code": "030157078713201",
-   "date": "Thu 26 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Plesian Primary School",
-   "code": "030157078713601",
-   "date": "Fri 27 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Nasur Primary School",
-   "code": "030157078714101",
-   "date": "Fri 27 Nov",
-   "who": "Gedi + Local 1"
-  }
- ],
- "27": [
-  {
-   "name": "Kokwototo Primary School",
-   "code": "030157078610301",
-   "date": "Fri 27 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Tangulbei Primary School",
-   "code": "030157078610601",
-   "date": "Fri 27 Nov",
-   "who": "Abdikhadir + Local 2"
-  },
-  {
-   "name": "Mokongwo Nursery School",
-   "code": "030157078610901",
-   "date": "Sat 28 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Nakorete Center",
-   "code": "030157078611501",
-   "date": "Sat 28 Nov",
-   "who": "Gedi + Local 1"
-  },
-  {
-   "name": "Seronu Primary School",
-   "code": "030157078612101",
-   "date": "Sat 28 Nov",
-   "who": "Abdikhadir + Local 2"
-  }
- ]
-};
-const WARDS = [
-  {"n": 1, "name": "Langas", "con": "Kapseret", "county": "Uasin Gishu", "lat": 0.52439, "lng": 35.20364, "r": 7800, "pair": false},
-  {"n": 2, "name": "Racecourse", "con": "Kesses", "county": "Uasin Gishu", "lat": 0.48169, "lng": 35.2843, "r": 4450, "pair": false},
-  {"n": 3, "name": "Kapsoya", "con": "Ainabkoi", "county": "Uasin Gishu", "lat": 0.52039, "lng": 35.32055, "r": 5000, "pair": false},
-  {"n": 4, "name": "Huruma", "con": "Turbo", "county": "Uasin Gishu", "lat": 0.53094, "lng": 35.24621, "r": 3750, "pair": false},
-  {"n": 5, "name": "Kiplombe", "con": "Turbo", "county": "Uasin Gishu", "lat": 0.63359, "lng": 35.22896, "r": 12900, "pair": false},
-  {"n": 6, "name": "Kapsaos", "con": "Turbo", "county": "Uasin Gishu", "lat": 0.56439, "lng": 35.23021, "r": 4000, "pair": false},
-  {"n": 7, "name": "Moi's Bridge", "con": "Soy", "county": "Uasin Gishu", "lat": 0.90055, "lng": 35.16447, "r": 7600, "pair": false},
-  {"n": 8, "name": "Kiptuya", "con": "Chesumei", "county": "Nandi", "lat": 0.19447, "lng": 35.01533, "r": 7400, "pair": false},
-  {"n": 9, "name": "Kapkangani", "con": "Emgwen", "county": "Nandi", "lat": 0.20311, "lng": 34.95807, "r": 5800, "pair": false},
-  {"n": 10, "name": "Kabwareng", "con": "Aldai", "county": "Nandi", "lat": 0.11418, "lng": 34.89485, "r": 5850, "pair": false},
-  {"n": 11, "name": "Riwo", "con": "Kapenguria", "county": "West Pokot", "lat": 1.54966, "lng": 35.21205, "r": 38000, "pair": false},
-  {"n": 12, "name": "Chepareria", "con": "Pokot South", "county": "West Pokot", "lat": 1.41364, "lng": 35.22241, "r": 25000, "pair": false},
-  {"n": 13, "name": "Lomut", "con": "Sigor", "county": "West Pokot", "lat": 1.38529, "lng": 35.59319, "r": 17250, "pair": false},
-  {"n": 14, "name": "Masool", "con": "Sigor", "county": "West Pokot", "lat": 1.60802, "lng": 35.64784, "r": 25400, "pair": false},
-  {"n": 15, "name": "Suam", "con": "Kacheliba", "county": "West Pokot", "lat": 1.46023, "lng": 34.90366, "r": 21000, "pair": false},
-  {"n": 16, "name": "Kapchok", "con": "Kacheliba", "county": "West Pokot", "lat": 1.8281, "lng": 35.08571, "r": 16800, "pair": false},
-  {"n": 17, "name": "Kiwawa", "con": "Kacheliba", "county": "West Pokot", "lat": 2.15627, "lng": 35.13251, "r": 35100, "pair": true},
-  {"n": 18, "name": "Alale", "con": "Kacheliba", "county": "West Pokot", "lat": 2.42162, "lng": 35.09754, "r": 29150, "pair": true},
-  {"n": 19, "name": "Ilchamus", "con": "Baringo South", "county": "Baringo", "lat": 0.57671, "lng": 36.05619, "r": 20550, "pair": false},
-  {"n": 20, "name": "Mukutani", "con": "Baringo South", "county": "Baringo", "lat": 0.54641, "lng": 36.1804, "r": 20400, "pair": true},
-  {"n": 21, "name": "Ribkwo", "con": "Tiaty", "county": "Baringo", "lat": 1.04072, "lng": 35.94957, "r": 25050, "pair": true},
-  {"n": 22, "name": "Silale", "con": "Tiaty", "county": "Baringo", "lat": 1.05936, "lng": 36.16158, "r": 19700, "pair": true},
-  {"n": 23, "name": "Loiyamorock", "con": "Tiaty", "county": "Baringo", "lat": 0.90211, "lng": 36.08503, "r": 25300, "pair": true},
-  {"n": 24, "name": "Tirioko", "con": "Tiaty", "county": "Baringo", "lat": 1.37534, "lng": 35.86181, "r": 36350, "pair": true},
-  {"n": 25, "name": "Kolowa", "con": "Tiaty", "county": "Baringo", "lat": 1.13557, "lng": 35.77856, "r": 25350, "pair": true},
-  {"n": 26, "name": "Churo/Amaya", "con": "Tiaty", "county": "Baringo", "lat": 0.77699, "lng": 36.35486, "r": 21350, "pair": true},
-  {"n": 27, "name": "Tangulbei/Korossi", "con": "Tiaty", "county": "Baringo", "lat": 0.82275, "lng": 36.20619, "r": 26300, "pair": true}
-];
-const TOWN = {name:"Eldoret town", lat:0.5143, lng:35.2698};
+const STATIONS = {"1":[{"name":"Gitwe Primary School","code":"027145072605301","date":"Wed 4 Nov","who":"Ali"},{"name":"Langas Primary School","code":"027145072605407","date":"Wed 4 Nov","who":"Hussain"},{"name":"Langas Primary School","code":"027145072605414","date":"Wed 4 Nov","who":"Local 3"},{"name":"Kahuroko Trading Centre","code":"027145072605601","date":"Thu 5 Nov","who":"Hussain"},{"name":"Wareng High School","code":"027145072605704","date":"Thu 5 Nov","who":"Local 3"}],"2":[{"name":"Racecourse Primary School","code":"027146072700101","date":"Fri 6 Nov","who":"Local 3"},{"name":"Moi University School of Law Annex Campus","code":"027146072700203","date":"Fri 6 Nov","who":"Ali"},{"name":"Eldoret Polytechnic","code":"027146072700401","date":"Fri 6 Nov","who":"Hussain"},{"name":"Oletebes Trading Centre","code":"027146072700502","date":"Sat 7 Nov","who":"Ali"},{"name":"Sosiani Primary School","code":"027146072700606","date":"Sat 7 Nov","who":"Hussain"}],"3":[{"name":"Kapsoya Primary School","code":"027144071900204","date":"Mon 9 Nov","who":"Hussain"},{"name":"Borderfarm Primary School","code":"027144071900503","date":"Mon 9 Nov","who":"Local 3"},{"name":"Kapsoya Dispensary","code":"027144071900701","date":"Mon 9 Nov","who":"Ali"},{"name":"Munyaka Primary School","code":"027144071900902","date":"Tue 10 Nov","who":"Local 3"},{"name":"Munyaka Primary School","code":"027144071900909","date":"Tue 10 Nov","who":"Ali"}],"4":[{"name":"Huruma Primary School","code":"027142071306703","date":"Wed 18 Nov","who":"Ali"},{"name":"Huruma Primary School","code":"027142071306712","date":"Wed 18 Nov","who":"Hussain"},{"name":"Uasin Gishu Primary School","code":"027142071306901","date":"Wed 18 Nov","who":"Local 3"},{"name":"M.V Patel Hall","code":"027142071307005","date":"Thu 19 Nov","who":"Hussain"},{"name":"M.V Patel Hall","code":"027142071307014","date":"Thu 19 Nov","who":"Local 3"}],"5":[{"name":"Kaplelach Primary School","code":"027142071104802","date":"Fri 20 Nov","who":"Local 3"},{"name":"Kiplombe Primary School","code":"027142071105102","date":"Fri 20 Nov","who":"Ali"},{"name":"Eldoret Secondary School","code":"027142071105306","date":"Sat 21 Nov","who":"Ali"},{"name":"Emkwen Primary School","code":"027142071105702","date":"Sat 21 Nov","who":"Hussain"},{"name":"Moi University West Campus","code":"027142071106102","date":"Mon 23 Nov","who":"Hussain"}],"6":[{"name":"Kapyemit Primary School","code":"027142071206303","date":"Mon 23 Nov","who":"Local 3"},{"name":"Kapyemit Primary School","code":"027142071206308","date":"Mon 23 Nov","who":"Ali"},{"name":"Kapkoros Primary School","code":"027142071206501","date":"Tue 24 Nov","who":"Local 3"},{"name":"Kapkoros Primary School","code":"027142071206506","date":"Tue 24 Nov","who":"Ali"},{"name":"Emkoin Primary School","code":"027142071206602","date":"Wed 25 Nov","who":"Ali"}],"7":[{"name":"AIC Moi's Bridge Primary School","code":"027141070100102","date":"Wed 25 Nov","who":"Hussain"},{"name":"AIC Moi's Bridge Primary School","code":"027141070100105","date":"Thu 26 Nov","who":"Hussain"},{"name":"Kwenet Primary School","code":"027141070100302","date":"Thu 26 Nov","who":"Local 3"},{"name":"Mukunga Primary School","code":"027141070100502","date":"Fri 27 Nov","who":"Local 3"},{"name":"Bwayi Primary School","code":"027141070100603","date":"Fri 27 Nov","who":"Ali"}],"8":[{"name":"Mwein Primary School","code":"029154076907901","date":"Wed 11 Nov","who":"Ali"},{"name":"Kimondi Primary School","code":"029154076908101","date":"Wed 11 Nov","who":"Hussain"},{"name":"Kechire Primary School","code":"029154076908203","date":"Wed 11 Nov","who":"Local 3"},{"name":"Kapkitara Primary School","code":"029154076908501","date":"Thu 12 Nov","who":"Hussain"},{"name":"Cheptigok Primary School","code":"029154076908701","date":"Thu 12 Nov","who":"Local 3"}],"9":[{"name":"Mokwo Primary School","code":"029155077101402","date":"Fri 13 Nov","who":"Local 3"},{"name":"Chepsonoi Primary School","code":"029155077101602","date":"Fri 13 Nov","who":"Ali"},{"name":"Kapkangani Primary School","code":"029155077101801","date":"Fri 13 Nov","who":"Hussain"},{"name":"Sirwa Yala Primary School","code":"029155077101902","date":"Sat 14 Nov","who":"Ali"},{"name":"Tebesonik Primary School","code":"029155077108801","date":"Sat 14 Nov","who":"Hussain"}],"10":[{"name":"Kaptwai Primary School","code":"029152075500301","date":"Mon 16 Nov","who":"Hussain"},{"name":"Chebara Primary School","code":"029152075500502","date":"Mon 16 Nov","who":"Local 3"},{"name":"Bonjoge Primary School","code":"029152075500802","date":"Mon 16 Nov","who":"Ali"},{"name":"Legemet Primary School","code":"029152075501201","date":"Tue 17 Nov","who":"Local 3"},{"name":"Chemong Primary School","code":"029152075501801","date":"Tue 17 Nov","who":"Ali"}],"11":[{"name":"Miskwony Primary School","code":"024129064100101","date":"Wed 4 Nov","who":"Abdikhadir"},{"name":"Ywotwo Nursery School","code":"024129064101401","date":"Wed 4 Nov","who":"Gedi"},{"name":"Kitelakapel Primary School","code":"024129064102501","date":"Wed 4 Nov","who":"Local 1"},{"name":"Serewo Primary School","code":"024129064103601","date":"Wed 4 Nov","who":"Local 2"},{"name":"Kanyarkwat Primary School","code":"024129064104601","date":"Thu 5 Nov","who":"Abdikhadir"}],"12":[{"name":"Toyopo Primary School","code":"024132065700201","date":"Thu 5 Nov","who":"Gedi"},{"name":"Chesra Primary School","code":"024132065701501","date":"Thu 5 Nov","who":"Local 1"},{"name":"Reper Primary School","code":"024132065702601","date":"Thu 5 Nov","who":"Local 2"},{"name":"Chemotong Primary School","code":"024132065703701","date":"Fri 6 Nov","who":"Abdikhadir"},{"name":"Chepareria Primary School","code":"024132065704503","date":"Fri 6 Nov","who":"Gedi"}],"13":[{"name":"Parkino Primary School","code":"024130064904301","date":"Fri 6 Nov","who":"Local 1"},{"name":"Kokworitit Primary School","code":"024130064904901","date":"Fri 6 Nov","who":"Local 2"},{"name":"Kokwomeses Primary School","code":"024130064905501","date":"Sat 7 Nov","who":"Abdikhadir"},{"name":"Sasach Nursery School","code":"024130064906501","date":"Sat 7 Nov","who":"Gedi"},{"name":"Mnyokok Preprimary School","code":"024130064907601","date":"Sat 7 Nov","who":"Local 1"}],"14":[{"name":"Sekerot Primary School","code":"024130064802901","date":"Sat 7 Nov","who":"Local 2"},{"name":"Surumpen Nursery School","code":"024130064803501","date":"Mon 9 Nov","who":"Abdikhadir"},{"name":"Akiriamet Primary School (Mobile)","code":"024130064803801","date":"Mon 9 Nov","who":"Gedi"},{"name":"Kokorosion Manyatta (Mobile)","code":"024130064804101","date":"Mon 9 Nov","who":"Local 1"},{"name":"Simbol Nursery School (Mobile)","code":"024130064804202","date":"Mon 9 Nov","who":"Local 2"}],"15":[{"name":"Kacheliba Mixed Primary School","code":"024131065100301","date":"Tue 10 Nov","who":"Abdikhadir"},{"name":"Tiyinei Primary School","code":"024131065100501","date":"Tue 10 Nov","who":"Gedi"},{"name":"Asilong Primary School","code":"024131065100901","date":"Tue 10 Nov","who":"Local 1"},{"name":"Chepo-Otupen Manyatta","code":"024131065101801","date":"Tue 10 Nov","who":"Local 2"},{"name":"Shongen Primary School","code":"024131065102501","date":"Wed 11 Nov","who":"Abdikhadir"}],"16":[{"name":"Kodera Primary School","code":"024131065408301","date":"Wed 11 Nov","who":"Gedi"},{"name":"Tuwiit Primary School","code":"024131065408601","date":"Wed 11 Nov","who":"Local 1"},{"name":"Rock-Valley Primary School","code":"024131065408801","date":"Wed 11 Nov","who":"Local 2"},{"name":"St. Dorcas Primary School","code":"024131065409501","date":"Thu 12 Nov","who":"Abdikhadir"},{"name":"Napitiro Primary School","code":"024131065409801","date":"Thu 12 Nov","who":"Gedi"}],"17":[{"name":"Pcholio Primary School","code":"024131065510501","date":"Thu 12 Nov","who":"Local 1 + Local 2"},{"name":"Kiwawa Primary School","code":"024131065511101","date":"Thu 12 Nov","who":"Local 1 + Local 2"},{"name":"Wasat Primary School","code":"024131065511601","date":"Fri 13 Nov","who":"Gedi + Local 1"},{"name":"Kotukoi Village","code":"024131065512501","date":"Fri 13 Nov","who":"Gedi + Local 1"},{"name":"Kalodeke Primary School","code":"024131065520101","date":"Fri 13 Nov","who":"Abdikhadir + Local 2"}],"18":[{"name":"Akoret (Naruoro) Mobile","code":"024131065613201","date":"Fri 13 Nov","who":"Abdikhadir + Local 2"},{"name":"Kameris Primary School","code":"024131065614501","date":"Sat 14 Nov","who":"Gedi + Local 1"},{"name":"Nagwoilap Primary School","code":"024131065615401","date":"Sat 14 Nov","who":"Gedi + Local 1"},{"name":"Kituti Primary School","code":"024131065615901","date":"Sat 14 Nov","who":"Abdikhadir + Local 2"},{"name":"Kosamuk Manyatta","code":"024131065616701","date":"Sat 14 Nov","who":"Abdikhadir + Local 2"}],"19":[{"name":"Eldume Primary School","code":"030160079905101","date":"Mon 16 Nov","who":"Abdikhadir"},{"name":"Lekiricha Ecde","code":"030160079905301","date":"Mon 16 Nov","who":"Gedi"},{"name":"Salabani Primary School","code":"030160079905801","date":"Mon 16 Nov","who":"Local 1"},{"name":"Sintaan Primary School","code":"030160079906201","date":"Mon 16 Nov","who":"Local 2"},{"name":"Meisori Primary School","code":"030160079906701","date":"Tue 17 Nov","who":"Abdikhadir"}],"20":[{"name":"Mosuro Ecde","code":"030160080110901","date":"Tue 17 Nov","who":"Gedi + Local 1"},{"name":"Lekiricha Ecde","code":"030160080111301","date":"Tue 17 Nov","who":"Gedi + Local 1"},{"name":"Logumgum Primary School","code":"030160080111801","date":"Wed 18 Nov","who":"Gedi + Local 1"},{"name":"Kapindasim Primary School","code":"030160080112101","date":"Wed 18 Nov","who":"Gedi + Local 1"},{"name":"Nkoiragai Ecde","code":"030160080116101","date":"Wed 18 Nov","who":"Abdikhadir + Local 2"}],"21":[{"name":"Apakiso Primary School","code":"030157078304801","date":"Thu 19 Nov","who":"Gedi + Local 1"},{"name":"Karuwon Nursery School","code":"030157078305301","date":"Thu 19 Nov","who":"Gedi + Local 1"},{"name":"Chemolingot Primary School","code":"030157078305502","date":"Thu 19 Nov","who":"Abdikhadir + Local 2"},{"name":"Dong'E Trading Centre","code":"030157078306201","date":"Thu 19 Nov","who":"Abdikhadir + Local 2"},{"name":"Alem Pre-School","code":"030157078307001","date":"Fri 20 Nov","who":"Gedi + Local 1"}],"22":[{"name":"Nakoko Primary School","code":"030157078407601","date":"Fri 20 Nov","who":"Gedi + Local 1"},{"name":"Riong'O Primary School","code":"030157078407901","date":"Fri 20 Nov","who":"Abdikhadir + Local 2"},{"name":"Cheptunoyo Primary School","code":"030157078408201","date":"Fri 20 Nov","who":"Abdikhadir + Local 2"},{"name":"Nalekat Pre School","code":"030157078408401","date":"Sat 21 Nov","who":"Gedi + Local 1"},{"name":"Akule Primary School","code":"030157078416001","date":"Sat 21 Nov","who":"Gedi + Local 1"}],"23":[{"name":"Chemoril Pre School","code":"030157078508901","date":"Sat 21 Nov","who":"Abdikhadir + Local 2"},{"name":"Nyaunyau Primary School","code":"030157078509301","date":"Sat 21 Nov","who":"Abdikhadir + Local 2"},{"name":"Nginyang Girls Secondary","code":"030157078509601","date":"Mon 23 Nov","who":"Gedi + Local 1"},{"name":"Tuwo Primary School","code":"030157078509801","date":"Mon 23 Nov","who":"Gedi + Local 1"},{"name":"Kinyach Ecde","code":"030157078516801","date":"Mon 23 Nov","who":"Abdikhadir + Local 2"}],"24":[{"name":"Sukut Primary School","code":"030157078100201","date":"Mon 23 Nov","who":"Abdikhadir + Local 2"},{"name":"Ptikii Primary School","code":"030157078100601","date":"Tue 24 Nov","who":"Gedi + Local 1"},{"name":"Kimnyan Primary School","code":"030157078101101","date":"Tue 24 Nov","who":"Gedi + Local 1"},{"name":"Kamrio Primary School","code":"030157078101501","date":"Tue 24 Nov","who":"Abdikhadir + Local 2"},{"name":"Kamsino Primary School","code":"030157078102001","date":"Tue 24 Nov","who":"Abdikhadir + Local 2"}],"25":[{"name":"Kolowa Primary School","code":"030157078202301","date":"Wed 25 Nov","who":"Gedi + Local 1"},{"name":"Tuwit Nursery School","code":"030157078202701","date":"Wed 25 Nov","who":"Gedi + Local 1"},{"name":"Kipnai Primary School","code":"030157078203101","date":"Wed 25 Nov","who":"Abdikhadir + Local 2"},{"name":"Ayelelion Dam","code":"030157078203701","date":"Wed 25 Nov","who":"Abdikhadir + Local 2"},{"name":"Chepelion Primary School","code":"030157078204301","date":"Thu 26 Nov","who":"Gedi + Local 1"}],"26":[{"name":"Kasilangwa Primary School","code":"030157078712501","date":"Thu 26 Nov","who":"Gedi + Local 1"},{"name":"Churo Primary School","code":"030157078712702","date":"Thu 26 Nov","who":"Abdikhadir + Local 2"},{"name":"Cheptangarmot Primary School","code":"030157078713201","date":"Thu 26 Nov","who":"Abdikhadir + Local 2"},{"name":"Plesian Primary School","code":"030157078713601","date":"Fri 27 Nov","who":"Gedi + Local 1"},{"name":"Nasur Primary School","code":"030157078714101","date":"Fri 27 Nov","who":"Gedi + Local 1"}],"27":[{"name":"Kokwototo Primary School","code":"030157078610301","date":"Fri 27 Nov","who":"Abdikhadir + Local 2"},{"name":"Tangulbei Primary School","code":"030157078610601","date":"Fri 27 Nov","who":"Abdikhadir + Local 2"},{"name":"Mokongwo Nursery School","code":"030157078610901","date":"Sat 28 Nov","who":"Gedi + Local 1"},{"name":"Nakorete Center","code":"030157078611501","date":"Sat 28 Nov","who":"Gedi + Local 1"},{"name":"Seronu Primary School","code":"030157078612101","date":"Sat 28 Nov","who":"Abdikhadir + Local 2"}]};
+// Survey wards by plan number (1..27) -> IEBC ward code; high-risk wards work in pairs.
+const SURVEY_CODES = [726,727,719,713,711,712,701,769,771,755,641,657,649,648,651,653,655,656,799,801,783,784,785,781,782,787,786];
+const PAIRS = new Set([17,18,20,21,22,23,24,25,26,27]);
+const NAME_FIX = {653: 'Kapchok'};
+const SURVEY = {};
+SURVEY_CODES.forEach((c, i) => { SURVEY[c] = {n: i + 1, pair: PAIRS.has(i + 1)}; });
+const TOWNS = [
+  ['Eldoret', 0.5143, 35.2698], ['Nairobi', -1.2864, 36.8172], ['Nakuru', -0.3031, 36.0800], ['Kisumu', -0.0917, 34.7680],
+  ['Mombasa', -4.0435, 39.6682], ['Kitale', 1.0157, 35.0062], ['Kapenguria', 1.2400, 35.1118], ['Kabarnet', 0.4919, 35.7430],
+  ['Kapsabet', 0.2017, 35.1050], ['Kakamega', 0.2827, 34.7519], ['Bungoma', 0.5635, 34.5606], ['Kericho', -0.3689, 35.2863],
+  ['Nyeri', -0.4201, 36.9476], ['Thika', -1.0332, 37.0693], ['Meru', 0.0470, 37.6490], ['Embu', -0.5389, 37.4596],
+  ['Machakos', -1.5177, 37.2634], ['Kisii', -0.6817, 34.7667], ['Isiolo', 0.3546, 37.5822], ['Marsabit', 2.3284, 37.9899],
+  ['Lodwar', 3.1191, 35.5973], ['Wajir', 1.7471, 40.0573], ['Garissa', -0.4532, 39.6461], ['Mandera', 3.9373, 41.8569],
+  ['Malindi', -3.2192, 40.1169]
+].map(t => ({name: t[0], lat: t[1], lng: t[2]}));
+
+// ---- parse the ward list ----
+const WARDS = [], byCode = {}, byCounty = {}, COUNTIES = [];
+(function(){
+  let county = '', con = '';
+  String(window.WARD_DATA || '').split('\n').forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    if (line[0] === '#'){ county = line.slice(1); COUNTIES.push(county); byCounty[county] = []; return; }
+    if (line[0] === '@'){ con = line.slice(1); return; }
+    const p = line.split('|');
+    const code = +p[0];
+    const w = {code, name: NAME_FIX[code] || p[1], con, county, lat: +p[2], lng: +p[3], r: (+p[4]) * 100, sv: SURVEY[code] || null};
+    WARDS.push(w); byCode[code] = w; byCounty[county].push(w);
+  });
+})();
+const surveyWards = SURVEY_CODES.map(c => byCode[c]);
+
 const $ = id => document.getElementById(id);
 const NS = "http://www.w3.org/2000/svg";
-
 function el(tag, attrs, text){
   const e = document.createElementNS(NS, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -1050,61 +221,104 @@ function bearing(a, b, c, d){
 }
 const PTS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 const compass = deg => PTS[Math.round(deg / 22.5) % 16];
+const norm = s => s.toLowerCase().replace(/[’'`]/g, '');
+const wardLabel = w => (w.sv ? '★ ' : '') + w.name + ' (' + w.con + ')';
 
-const toSel = $('to'), fromSel = $('from');
-const COUNTIES = ['Uasin Gishu', 'Nandi', 'West Pokot', 'Baringo'];
-toSel.innerHTML = COUNTIES.map(c => '<optgroup label="' + c + '">' +
-  WARDS.filter(w => w.county === c).map(w => '<option value="' + w.n + '">' + w.name + ' (' + w.con + ')</option>').join('') +
-  '</optgroup>').join('');
-fromSel.innerHTML = '<option value="T">' + TOWN.name + '</option>' + COUNTIES.map(c => '<optgroup label="' + c + ' wards">' +
-  WARDS.filter(w => w.county === c).map(w => '<option value="' + w.n + '">' + w.name + ' ward</option>').join('') +
-  '</optgroup>').join('');
-toSel.value = '8'; fromSel.value = 'T';
+$('sub').textContent = 'All ' + WARDS.length.toLocaleString() + ' wards in ' + COUNTIES.length + ' counties. The ' + surveyWards.length +
+  ' survey wards (★) also list their polling stations, dates and teams.';
 
-const key = $('key');
-COUNTIES.forEach(c => {
-  const hd = document.createElement('li');
-  hd.className = 'hd'; hd.textContent = c;
-  key.appendChild(hd);
-  WARDS.filter(w => w.county === c).forEach(w => {
-    const li = document.createElement('li');
-    const b = document.createElement('button');
-    b.type = 'button'; b.dataset.n = w.n;
-    const i = document.createElement('i'); i.textContent = w.n;
-    const t = document.createElement('span');
-    t.textContent = w.name;
-    const s = document.createElement('small'); s.textContent = w.con + (w.pair ? ' \u00b7 pairs' : '');
-    t.appendChild(s);
-    b.append(i, t);
-    b.addEventListener('click', () => { toSel.value = String(w.n); render(); window.scrollTo({top: 0, behavior: 'smooth'}); });
-    li.appendChild(b); key.appendChild(li);
+const cnSel = $('cn'), toSel = $('to'), fromSel = $('from');
+cnSel.innerHTML = COUNTIES.map(c => '<option>' + c + '</option>').join('');
+fromSel.innerHTML = TOWNS.map((t, i) => '<option value="' + i + '">' + t.name + '</option>').join('');
+let me = null;
+
+function fillWards(county, code){
+  toSel.innerHTML = byCounty[county].map(w => '<option value="' + w.code + '">' + wardLabel(w) + '</option>').join('');
+  toSel.value = String(code != null ? code : byCounty[county][0].code);
+}
+function pick(code){
+  const w = byCode[code]; if (!w) return;
+  cnSel.value = w.county; fillWards(w.county, w.code); render();
+}
+function startPoint(){ return fromSel.value === 'ME' ? me : TOWNS[+fromSel.value]; }
+
+// ---- search ----
+const q = $('q'), res = $('res');
+function runSearch(){
+  const t = norm(q.value.trim());
+  res.textContent = '';
+  if (t.length < 2){ res.hidden = true; return []; }
+  const hits = WARDS.filter(w => norm(w.name + ' ' + w.con + ' ' + w.county).includes(t));
+  hits.sort((a, b) => (norm(b.name).startsWith(t) - norm(a.name).startsWith(t)) || (!!b.sv - !!a.sv));
+  hits.slice(0, 8).forEach(w => {
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = (w.sv ? '★ ' : '') + w.name;
+    const s = document.createElement('small'); s.textContent = w.con + ', ' + w.county;
+    b.appendChild(s);
+    b.addEventListener('click', () => { q.value = ''; res.hidden = true; pick(w.code); });
+    li.appendChild(b); res.appendChild(li);
   });
+  if (!hits.length || hits.length > 8){
+    const li = document.createElement('li'); li.className = 'more';
+    li.textContent = hits.length ? (hits.length - 8) + ' more. Keep typing to narrow it down.' : 'No ward matches that.';
+    res.appendChild(li);
+  }
+  res.hidden = false;
+  return hits;
+}
+q.addEventListener('input', runSearch);
+q.addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); const h = runSearch(); if (h.length){ q.value = ''; res.hidden = true; pick(h[0].code); } }
+  if (e.key === 'Escape'){ res.hidden = true; }
 });
 
-function startPoint(){
-  return fromSel.value === 'T' ? TOWN : WARDS.find(w => String(w.n) === fromSel.value);
+// ---- lists below the map ----
+function chip(w, withNum){
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button'; b.dataset.code = w.code;
+  if (withNum){ const i = document.createElement('i'); i.textContent = w.sv.n; b.appendChild(i); }
+  else { const d = document.createElement('span'); d.className = 'dotw' + (w.sv ? ' sv' : ''); b.appendChild(d); }
+  const t = document.createElement('span'); t.textContent = w.name;
+  const s = document.createElement('small'); s.textContent = w.con + (w.sv && w.sv.pair ? ' · pairs' : '') + (!withNum && w.sv ? ' · survey' : '');
+  t.appendChild(s); b.appendChild(t);
+  b.addEventListener('click', () => { pick(w.code); window.scrollTo({top: 0, behavior: 'smooth'}); });
+  li.appendChild(b); return li;
+}
+const key = $('key');
+['Uasin Gishu', 'Nandi', 'West Pokot', 'Baringo'].forEach(c => {
+  const hd = document.createElement('li'); hd.className = 'hd'; hd.textContent = c; key.appendChild(hd);
+  surveyWards.filter(w => w.county === c).forEach(w => key.appendChild(chip(w, true)));
+});
+function fillCounty(county){
+  const ul = $('cty'); ul.textContent = '';
+  $('ctyHd').textContent = 'All wards in ' + county + ' (' + byCounty[county].length + ')';
+  byCounty[county].forEach(w => ul.appendChild(chip(w, false)));
 }
 
+// ---- map ----
 function drawMap(dest, start){
   const svg = $('map');
   svg.textContent = '';
   const W = 360, pad = 34;
-  // fit the view to the selected ward's county plus the starting point
-  const pts = WARDS.filter(w => w.county === dest.county).map(w => [w.lat, w.lng]);
-  pts.push([start.lat, start.lng]);
+  const cw = byCounty[dest.county];
+  const cl = cw.map(w => w.lat), cg = cw.map(w => w.lng);
+  const spanKm = Math.max(Math.max(...cl) - Math.min(...cl), Math.max(...cg) - Math.min(...cg)) * 111;
+  const dKm = km(start.lat, start.lng, dest.lat, dest.lng);
+  const include = dKm < Math.max(150, spanKm * 1.5);
+  const pts = cw.map(w => [w.lat, w.lng]);
+  if (include) pts.push([start.lat, start.lng]);
   const lats = pts.map(p => p[0]), lngs = pts.map(p => p[1]);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats), minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
   const spanLat = maxLat - minLat, spanLng = maxLng - minLng;
-  const sc = Math.min((W - 2 * pad) / Math.max(spanLng, 0.15), 500 / Math.max(spanLat, 0.15));
+  const sc = Math.min((W - 2 * pad) / Math.max(spanLng, 0.12), 500 / Math.max(spanLat, 0.12));
   const H = Math.max(260, Math.round(spanLat * sc + 2 * pad));
   const offX = (W - 2 * pad - spanLng * sc) / 2, offY = (H - 2 * pad - spanLat * sc) / 2;
   const px = lng => pad + offX + (lng - minLng) * sc;
   const py = lat => pad + offY + (maxLat - lat) * sc;
-  const inView = (x, y) => x > -6 && x < W + 6 && y > -6 && y < H + 6;
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.appendChild(el('rect', {x:0, y:0, width:W, height:H, rx:8, fill:'var(--bg)'}));
-  // grid
-  const step = [0.05, 0.1, 0.2, 0.5, 1].find(s => s * sc >= 45) || 1;
+  const step = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2].find(s => s * sc >= 45) || 2;
   for (let lat = Math.floor((minLat - 2) / step) * step; lat <= maxLat + 2; lat += step){
     const y = py(lat); if (y < 0 || y > H) continue;
     svg.appendChild(el('line', {x1:0, x2:W, y1:y, y2:y, stroke:'var(--grid)', 'stroke-width':1}));
@@ -1113,106 +327,159 @@ function drawMap(dest, start){
     const x = px(lng); if (x < 0 || x > W) continue;
     svg.appendChild(el('line', {y1:0, y2:H, x1:x, x2:x, stroke:'var(--grid)', 'stroke-width':1}));
   }
-  // county name and north arrow
   svg.appendChild(el('text', {x:12, y:20, fill:'var(--muted)', 'font-size':11, 'letter-spacing':1}, dest.county.toUpperCase()));
   svg.appendChild(el('path', {d:'M' + (W - 24) + ' 34 L' + (W - 18) + ' 48 L' + (W - 24) + ' 44 L' + (W - 30) + ' 48 Z', fill:'var(--fg)'}));
   svg.appendChild(el('text', {x:W - 24, y:24, 'text-anchor':'middle', fill:'var(--muted)', 'font-size':11}, 'N'));
-  // scale bar
-  const barKm = [1, 2, 5, 10, 20, 50, 100].find(k => k / 111.32 * sc >= 40) || 100;
+  const barKm = [1, 2, 5, 10, 20, 50, 100, 200].find(k => k / 111.32 * sc >= 40) || 200;
   const barPx = barKm / 111.32 * sc;
   svg.appendChild(el('line', {x1:14, x2:14 + barPx, y1:H - 14, y2:H - 14, stroke:'var(--fg)', 'stroke-width':2}));
   svg.appendChild(el('text', {x:14, y:H - 20, fill:'var(--muted)', 'font-size':10}, barKm + ' km'));
-  // survey GPS zone of the selected ward, to scale
-  svg.appendChild(el('circle', {cx:px(dest.lng), cy:py(dest.lat), r:dest.r / 1000 / 111.32 * sc, fill:'var(--route)', 'fill-opacity':0.08, stroke:'var(--route)', 'stroke-opacity':0.5, 'stroke-dasharray':'3 4'}));
-  // route
-  if (start && !(start.lat === dest.lat && start.lng === dest.lng)){
-    const x1 = px(start.lng), y1 = py(start.lat), x2 = px(dest.lng), y2 = py(dest.lat);
-    svg.appendChild(el('line', {x1, y1, x2, y2, stroke:'var(--route)', 'stroke-width':2.5, 'stroke-dasharray':'6 5'}));
+  const dx = px(dest.lng), dy = py(dest.lat);
+  svg.appendChild(el('circle', {cx:dx, cy:dy, r:dest.r / 1000 / 111.32 * sc, fill:'var(--route)', 'fill-opacity':0.08, stroke:'var(--route)', 'stroke-opacity':0.5, 'stroke-dasharray':'3 4'}));
+
+  function arrowHead(x1, y1, x2, y2){
     const ang = Math.atan2(y2 - y1, x2 - x1);
     const ax = x2 - Math.cos(ang) * 14, ay = y2 - Math.sin(ang) * 14;
     const p1 = [ax - Math.sin(ang) * 5, ay + Math.cos(ang) * 5], p2 = [ax + Math.sin(ang) * 5, ay - Math.cos(ang) * 5];
     svg.appendChild(el('polygon', {points:[[x2 - Math.cos(ang) * 10, y2 - Math.sin(ang) * 10], p1, p2].map(p => p.join(',')).join(' '), fill:'var(--route)'}));
   }
-  // Eldoret town
-  const tx = px(TOWN.lng), ty = py(TOWN.lat);
-  if (inView(tx, ty)){
-    svg.appendChild(el('path', {d:'M' + tx + ' ' + (ty - 5) + ' L' + (tx + 5) + ' ' + ty + ' L' + tx + ' ' + (ty + 5) + ' L' + (tx - 5) + ' ' + ty + ' Z', fill:'var(--me)'}));
-    svg.appendChild(el('text', {x:tx + 8, y:ty + 16, fill:'var(--me)', 'font-size':10}, 'Eldoret'));
+  if (dKm >= 0.05){
+    if (include){
+      const x1 = px(start.lng), y1 = py(start.lat);
+      svg.appendChild(el('line', {x1, y1, x2:dx, y2:dy, stroke:'var(--route)', 'stroke-width':2.5, 'stroke-dasharray':'6 5'}));
+      arrowHead(x1, y1, dx, dy);
+      svg.appendChild(el('path', {d:'M' + x1 + ' ' + (y1 - 5) + ' L' + (x1 + 5) + ' ' + y1 + ' L' + x1 + ' ' + (y1 + 5) + ' L' + (x1 - 5) + ' ' + y1 + ' Z', fill:'var(--me)'}));
+      svg.appendChild(el('text', {x:x1 + 8, y:y1 + 16, fill:'var(--me)', 'font-size':10}, start.name));
+    } else {
+      // start is far away: draw an arrow from the map edge, pointing back toward it
+      const b = rad(bearing(dest.lat, dest.lng, start.lat, start.lng));
+      const ux = Math.sin(b), uy = -Math.cos(b);
+      const tx = ux > 0 ? (W - 16 - dx) / ux : ux < 0 ? (16 - dx) / ux : Infinity;
+      const ty = uy > 0 ? (H - 30 - dy) / uy : uy < 0 ? (46 - dy) / uy : Infinity;
+      const t = Math.max(24, Math.min(tx, ty));
+      const ex = dx + ux * t, ey = dy + uy * t;
+      svg.appendChild(el('line', {x1:ex, y1:ey, x2:dx, y2:dy, stroke:'var(--route)', 'stroke-width':2.5, 'stroke-dasharray':'6 5'}));
+      arrowHead(ex, ey, dx, dy);
+      const left = ex > W * 0.55;
+      svg.appendChild(el('text', {x:left ? ex - 6 : ex + 6, y:ey + (uy < 0 ? 12 : -6), 'text-anchor':left ? 'end' : 'start', fill:'var(--me)', 'font-size':10},
+        start.name + ' ' + Math.round(dKm) + ' km'));
+    }
   }
-  // wards
-  WARDS.forEach(w => {
+  // all wards of the county as small dots; survey wards numbered
+  cw.forEach(w => {
+    if (w === dest) return;
     const x = px(w.lng), y = py(w.lat);
-    if (!inView(x, y)) return;
     const g = el('g', {style:'cursor:pointer', tabindex:0, role:'button', 'aria-label':w.name});
-    const on = dest.n === w.n;
-    g.appendChild(el('circle', {cx:x, cy:y, r:on ? 11 : 9, fill:on ? 'var(--route)' : 'var(--accent)', stroke:'var(--surface)', 'stroke-width':2}));
-    g.appendChild(el('text', {x:x, y:y + 4, 'text-anchor':'middle', fill:'#fff', 'font-size':on ? 11 : 10, 'font-weight':700}, String(w.n)));
-    g.addEventListener('click', () => { toSel.value = String(w.n); render(); });
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toSel.value = String(w.n); render(); } });
+    g.appendChild(el('circle', {cx:x, cy:y, r:11, fill:'transparent'}));
+    if (w.sv){
+      g.appendChild(el('circle', {cx:x, cy:y, r:9, fill:'var(--accent)', stroke:'var(--surface)', 'stroke-width':2}));
+      g.appendChild(el('text', {x, y:y + 4, 'text-anchor':'middle', fill:'#fff', 'font-size':10, 'font-weight':700}, String(w.sv.n)));
+    } else {
+      g.appendChild(el('circle', {cx:x, cy:y, r:4.5, fill:'var(--muted)', 'fill-opacity':0.75, stroke:'var(--surface)', 'stroke-width':1.5}));
+    }
+    g.appendChild(el('title', {}, w.name));
+    const go = () => pick(w.code);
+    g.addEventListener('click', go);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
     svg.appendChild(g);
   });
-  // destination label
-  const lx = px(dest.lng), ly = py(dest.lat);
-  const left = lx > W * 0.6;
-  svg.appendChild(el('text', {x:left ? lx - 16 : lx + 16, y:ly + 4, 'text-anchor':left ? 'end' : 'start', fill:'var(--fg)', 'font-size':12, 'font-weight':600}, dest.name));
+  // selected ward on top
+  svg.appendChild(el('circle', {cx:dx, cy:dy, r:11, fill:'var(--route)', stroke:'var(--surface)', 'stroke-width':2}));
+  if (dest.sv) svg.appendChild(el('text', {x:dx, y:dy + 4, 'text-anchor':'middle', fill:'#fff', 'font-size':11, 'font-weight':700}, String(dest.sv.n)));
+  else svg.appendChild(el('circle', {cx:dx, cy:dy, r:3.5, fill:'#fff'}));
+  const left = dx > W * 0.6;
+  svg.appendChild(el('text', {x:left ? dx - 16 : dx + 16, y:dy + 4, 'text-anchor':left ? 'end' : 'start', fill:'var(--fg)', 'font-size':12, 'font-weight':600,
+    stroke:'var(--bg)', 'stroke-width':3, 'paint-order':'stroke'}, dest.name));
 }
 
+// ---- stations ----
 function renderStations(dest){
-  const list = STATIONS[String(dest.n)] || [];
-  $('stTitle').textContent = 'Polling stations in ' + dest.name;
-  $('stMeta').textContent = list.length + ' stations, 20 interviews each (10 near the station, 10 at the nearest trading centre). Dates and teams are from the field plan.';
+  const ul = $('stList'); ul.textContent = '';
   const old = document.getElementById('pairNote'); if (old) old.remove();
-  if (dest.pair){
-    const n = document.createElement('div'); n.id = 'pairNote'; n.className = 'pairnote';
-    n.textContent = 'High-risk ward: work in pairs with a local guide, 2 stations a day, and be back by 17:00.';
-    $('stMeta').after(n);
-  }
-  const ul = $('stList');
-  ul.textContent = '';
-  list.forEach(s => {
-    const li = document.createElement('li');
-    const left = document.createElement('div');
-    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = s.name;
-    const sub = document.createElement('div'); sub.className = 'sub';
-    sub.textContent = s.date + ' \u00b7 ' + s.who + ' \u00b7 ' + s.code;
+  const place = dest.name + ' ward, ' + dest.con + ', ' + dest.county + ', Kenya';
+  if (dest.sv){
+    const list = STATIONS[String(dest.sv.n)] || [];
+    $('stTitle').textContent = 'Polling stations in ' + dest.name;
+    $('stMeta').textContent = list.length + ' stations, 20 interviews each (10 near the station, 10 at the nearest trading centre). Dates and teams are from the field plan.';
+    if (dest.sv.pair){
+      const n = document.createElement('div'); n.id = 'pairNote'; n.className = 'pairnote';
+      n.textContent = 'High-risk ward: work in pairs with a local guide, 2 stations a day, and be back by 17:00.';
+      $('stMeta').after(n);
+    }
+    list.forEach(s => {
+      const li = document.createElement('li'), left = document.createElement('div');
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = s.name;
+      const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = s.date + ' · ' + s.who + ' · ' + s.code;
+      left.append(nm, sub);
+      const a = document.createElement('a'); a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Find on map';
+      a.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.name + ', ' + dest.name + ', ' + dest.county + ', Kenya');
+      a.setAttribute('aria-label', 'Find ' + s.name + ' on Google Maps');
+      li.append(left, a); ul.appendChild(li);
+    });
+  } else {
+    $('stTitle').textContent = 'Polling stations in ' + dest.name;
+    $('stMeta').textContent = 'No station list is loaded for this ward. Only the ' + surveyWards.length + ' survey wards have one from the field plan.';
+    const li = document.createElement('li'), left = document.createElement('div');
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = 'Search polling stations here';
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = dest.name + ' ward, ' + dest.con + ', ' + dest.county;
     left.append(nm, sub);
-    const a = document.createElement('a');
-    a.target = '_blank'; a.rel = 'noopener';
-    a.textContent = 'Find on map';
-    a.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.name + ', ' + dest.name + ', ' + dest.county + ', Kenya');
-    a.setAttribute('aria-label', 'Find ' + s.name + ' on Google Maps');
-    li.append(left, a);
-    ul.appendChild(li);
-  });
+    const a = document.createElement('a'); a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Search on map';
+    a.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('polling stations, ' + place);
+    li.append(left, a); ul.appendChild(li);
+  }
 }
 
+// ---- main render ----
 function render(){
-  const dest = WARDS.find(w => String(w.n) === toSel.value);
-  const start = startPoint();
-  document.querySelectorAll('.key button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.n === String(dest.n))));
+  const dest = byCode[toSel.value];
+  const start = startPoint() || TOWNS[0];
+  if (cnSel.dataset.filled !== dest.county){ fillCounty(dest.county); cnSel.dataset.filled = dest.county; }
+  document.querySelectorAll('.key button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.code === String(dest.code))));
   const d = km(start.lat, start.lng, dest.lat, dest.lng);
-  const sameSpot = d < 0.05;
-  if (sameSpot){
+  if (d < 0.05){
     $('dist').textContent = '0 km'; $('road').textContent = '0 km'; $('dir').textContent = '--';
     $('arrow').style.transform = 'none';
     $('hint').textContent = 'The start and the ward share a centre point.';
   } else {
     const b = bearing(start.lat, start.lng, dest.lat, dest.lng);
-    $('dist').textContent = d.toFixed(1) + ' km';
+    $('dist').textContent = (d < 100 ? d.toFixed(1) : Math.round(d)) + ' km';
     $('road').textContent = '~' + Math.round(d * 1.3) + ' km';
     $('dir').textContent = compass(b) + ' ' + Math.round(b) + '°';
     $('arrow').style.transform = 'rotate(' + b + 'deg)';
-    $('hint').textContent = 'Road distance is about 1.3 times the straight line, so check it in Google Maps. The ward centre is the ward’s middle point, not a specific building. Survey GPS zone: within ' + (dest.r / 1000).toFixed(1) + ' km of it.';
+    $('hint').textContent = 'Road distance is about 1.3 times the straight line, so check it in Google Maps. The ward centre is an approximate middle point, not a specific building. Ward GPS zone: within ' + (dest.r / 1000).toFixed(1) + ' km of it.';
   }
   const dst = dest.lat + ',' + dest.lng;
   $('navMe').href = 'https://www.google.com/maps/dir/?api=1&destination=' + dst + '&travelmode=driving';
-  $('navFrom').href = 'https://www.google.com/maps/dir/?api=1&origin=' + start.lat + ',' + start.lng + '&destination=' + dst + '&travelmode=driving';
-  $('navFrom').textContent = 'Directions from ' + (fromSel.value === 'T' ? 'Eldoret town' : start.name);
+  const nf = $('navFrom');
+  nf.hidden = fromSel.value === 'ME';
+  nf.href = 'https://www.google.com/maps/dir/?api=1&origin=' + start.lat + ',' + start.lng + '&destination=' + dst + '&travelmode=driving';
+  nf.textContent = 'Directions from ' + start.name;
   drawMap(dest, start);
   renderStations(dest);
+  try { history.replaceState(null, '', '#' + dest.code); } catch (e) {}
 }
+
+cnSel.addEventListener('change', () => { fillWards(cnSel.value); render(); });
 toSel.addEventListener('change', render);
 fromSel.addEventListener('change', render);
+$('gps').addEventListener('click', () => {
+  if (!navigator.geolocation){ $('hint').textContent = 'This browser cannot share your location. Pick a town instead.'; return; }
+  $('hint').textContent = 'Finding your location...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    me = {name: 'My location', lat: pos.coords.latitude, lng: pos.coords.longitude};
+    if (!fromSel.querySelector('option[value="ME"]')){
+      const o = document.createElement('option'); o.value = 'ME'; o.textContent = 'My location';
+      fromSel.insertBefore(o, fromSel.firstChild);
+    }
+    fromSel.value = 'ME'; render();
+  }, () => { $('hint').textContent = 'Could not get your location. Allow location access, or pick a town to start from.'; },
+  {enableHighAccuracy: true, timeout: 15000});
+});
+
+const h = parseInt(location.hash.slice(1), 10);
+const first = byCode[h] || byCode[769] || WARDS[0];
+cnSel.value = first.county; fillWards(first.county, first.code);
+fromSel.value = '0';
 render();
 </script>
 <script>
