@@ -102,6 +102,12 @@ html, body { margin: 0; }
   .key .dotw.sv { background: var(--route); }
   .sec { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 4px 0 -6px; }
   .nostn { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .fare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  .fare input[type=number] { font: inherit; font-size: 16px; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; width: 100%; text-transform: none; letter-spacing: 0; }
+  .fare input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .fare-total { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+  .fare-lines { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 </style></head>
 <body>
 
@@ -146,6 +152,23 @@ html, body { margin: 0; }
       <a class="btn alt" id="navFrom" target="_blank" rel="noopener">Directions from start</a>
     </div>
     <div class="hint" id="hint"></div>
+  </div>
+
+  <div class="card" id="fareCard">
+    <h2 style="font-size:16px;margin:0">Transport cost</h2>
+    <div class="fare-total" id="fareTotal">--</div>
+    <div class="fare-lines" id="fareLines"></div>
+    <div class="fare">
+      <label>Normal rate (KSh per km)<input type="number" id="rate" value="200" min="0" step="10" inputmode="numeric"></label>
+      <label>Long-trip rate (KSh per km)<input type="number" id="rate2" value="100" min="0" step="10" inputmode="numeric"></label>
+      <label>Long trip starts at (km)<input type="number" id="thr" value="100" min="0" step="10" inputmode="numeric"></label>
+      <label>Distance used
+        <select id="basis"><option value="road">By road (estimate)</option><option value="line">Straight line</option></select>
+      </label>
+      <label>Trip
+        <select id="trip"><option value="1">One way</option><option value="2">Return</option></select>
+      </label>
+    </div>
   </div>
 
   <div class="card mapbox">
@@ -429,6 +452,19 @@ function renderStations(dest){
   }
 }
 
+function fare(dKm){
+  const rate = +$('rate').value || 0, rate2 = +$('rate2').value || 0, thr = Math.max(0, +$('thr').value || 0);
+  const km1 = (dKm * ($('basis').value === 'road' ? 1.3 : 1)) * +$('trip').value;
+  const full = Math.min(km1, thr), rest = Math.max(0, km1 - thr);
+  const total = full * rate + rest * rate2;
+  const f = n => Math.round(n).toLocaleString();
+  $('fareTotal').textContent = 'KSh ' + f(total);
+  $('fareLines').textContent = km1 < 0.05 ? '' :
+    f(full) + ' km x ' + f(rate) + (rest > 0 ? '  +  ' + f(rest) + ' km x ' + f(rate2) + ' (long-trip rate)' : '') + '  =  ' + f(total) + '. Total ' + f(km1) + ' km.';
+}
+function renderFare(){ const s = startPoint() || TOWNS[0], d = byCode[toSel.value]; fare(km(s.lat, s.lng, d.lat, d.lng)); }
+['rate','rate2','thr','basis','trip'].forEach(id => $(id).addEventListener('input', renderFare));
+
 // ---- main render ----
 function render(){
   const dest = byCode[toSel.value];
@@ -456,6 +492,7 @@ function render(){
   nf.textContent = 'Directions from ' + start.name;
   drawMap(dest, start);
   renderStations(dest);
+  renderFare();
   try { history.replaceState(null, '', '#' + dest.code); } catch (e) {}
 }
 
