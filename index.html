@@ -171,6 +171,17 @@ html, body { margin: 0; }
     </div>
   </div>
 
+  <div class="card" id="rideCard">
+    <h2 style="font-size:16px;margin:0 0 4px">Book a ride</h2>
+    <div class="fare-lines" id="rideTo"></div>
+    <div class="actions">
+      <a class="btn" id="uber" target="_blank" rel="noopener">Uber</a>
+      <a class="btn" id="bolt" target="_blank" rel="noopener">Bolt</a>
+      <button class="btn alt" id="copyDest" type="button">Copy destination</button>
+    </div>
+    <div class="hint" id="rideHint">Uber opens with the ward as the drop-off. Bolt opens its page; paste the destination there. Both only work where drivers operate, so remote wards may need a local driver.</div>
+  </div>
+
   <div class="card mapbox">
     <svg id="map" viewBox="0 0 360 560" role="img" aria-label="Map of the wards in the selected county"></svg>
   </div>
@@ -493,9 +504,19 @@ function render(){
   drawMap(dest, start);
   renderStations(dest);
   renderFare();
+  const lbl = dest.name + ' ward, ' + dest.con + ', ' + dest.county;
+  $('rideTo').textContent = 'Drop-off: ' + lbl;
+  $('uber').href = 'https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[latitude]=' + dest.lat + '&dropoff[longitude]=' + dest.lng + '&dropoff[nickname]=' + encodeURIComponent(dest.name + ' ward');
+  $('bolt').href = 'https://bolt.eu/en-ke/';
+  $('copyDest').dataset.t = lbl + ' (' + dest.lat + ', ' + dest.lng + ')';
   try { history.replaceState(null, '', '#' + dest.code); } catch (e) {}
 }
 
+$('copyDest').addEventListener('click', e => {
+  const t = e.target.dataset.t || '';
+  const done = () => { e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy destination'; }, 1500); };
+  try { navigator.clipboard.writeText(t).then(done, () => { e.target.textContent = t; }); } catch (x) { e.target.textContent = t; }
+});
 cnSel.addEventListener('change', () => { fillWards(cnSel.value); render(); });
 toSel.addEventListener('change', render);
 fromSel.addEventListener('change', render);
