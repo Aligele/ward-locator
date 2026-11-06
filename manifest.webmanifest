@@ -1,7 +1,7 @@
 {
   "name": "Ward Locator",
   "short_name": "Wards",
-  "description": "Find the 10 survey wards in Uasin Gishu and Nandi: distance, direction and directions.",
+  "description": "Find the 27 survey wards in Uasin Gishu, Nandi, West Pokot and Baringo: distance, direction and directions.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
